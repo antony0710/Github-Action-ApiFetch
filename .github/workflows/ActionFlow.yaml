@@ -9,7 +9,8 @@ on:
     tags: [ '*' ] # 新增這行，tag push 也會觸發
   pull_request:
     branches: [ main, master,release ]
-
+  schedule:
+    - cron: "0 * * * *" # 每小時執行一次
 jobs:
   trigger-testing:
     runs-on: ubuntu-latest
@@ -19,15 +20,22 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Fetch weather (用 curl 舉例)
+      - name: 取得當前時間
+        id: datetime
         run: |
-          curl "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=tc"
-
-      - name: commit 並 push 數據到 repo
+          echo "now=$(date '+%Y%m%d_%H%M%S')" >> $GITHUB_OUTPUT
+      - name: 抓取天氣並儲存為 json
         run: |
-          git add weather.json
-          git commit -m "自動更新天氣數據: $(date '+%Y-%m-%d %H:%M:%S')" || echo "No changes to commit"
+          curl "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=tc" -o "weather_${{ steps.datetime.outputs.now }}.json"
+      - name: 設置 Git 用戶（Actions 專用）
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: commit 並 push 新增的 json
+        run: |
+          git add weather_*.json
+          git commit -m "新增天氣數據: ${{ steps.datetime.outputs.now }}" || echo "No changes to commit"
           git push
         env:
           # GITHUB_TOKEN 為內建機密，Actions 有自動權限 push
