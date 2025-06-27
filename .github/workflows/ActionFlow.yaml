@@ -24,6 +24,8 @@ jobs:
         id: datetime
         run: |
           echo "now=$(date '+%Y%m%d_%H%M%S')" >> $GITHUB_OUTPUT
+      - name: 建立 weather_data 資料夾（如不存在）
+        run: mkdir -p weather_data
       - name: 抓取天氣並儲存為 json
         run: |
           curl "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=tc" -o "weather_data/weather_${{ steps.datetime.outputs.now }}.json"
