@@ -26,7 +26,7 @@ jobs:
           echo "now=$(date '+%Y%m%d_%H%M%S')" >> $GITHUB_OUTPUT
       - name: 抓取天氣並儲存為 json
         run: |
-          curl "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=tc" -o "weather_${{ steps.datetime.outputs.now }}.json"
+          curl "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=tc" -o "weather_data/weather_${{ steps.datetime.outputs.now }}.json"
       - name: 設置 Git 用戶（Actions 專用）
         run: |
           git config --global user.name "github-actions[bot]"
