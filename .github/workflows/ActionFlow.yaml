@@ -1,0 +1,34 @@
+name: Getting Weather Workflow
+
+permissions:
+  contents: write
+on:
+  workflow_dispatch: # 允許手動觸發
+  push:
+    branches: [ main, master,release ]
+    tags: [ '*' ] # 新增這行，tag push 也會觸發
+  pull_request:
+    branches: [ main, master,release ]
+
+jobs:
+  trigger-testing:
+    runs-on: ubuntu-latest
+
+    steps:
+
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Fetch weather (用 curl 舉例)
+        run: |
+          curl "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=tc"
+
+      - name: commit 並 push 數據到 repo
+        run: |
+          git add weather.json
+          git commit -m "自動更新天氣數據: $(date '+%Y-%m-%d %H:%M:%S')" || echo "No changes to commit"
+          git push
+        env:
+          # GITHUB_TOKEN 為內建機密，Actions 有自動權限 push
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
