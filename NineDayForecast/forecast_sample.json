@@ -1,0 +1,55 @@
+{
+  "generalSituation": "受東北季候風影響，本港天氣乾燥。預料一道冷鋒會在星期四橫過華南。",
+  "tcInfo": "",
+  "weatherForecast": [
+    {
+      "forecastDate": "20250717",
+      "week": "星期四",
+      "forecastWind": "東北風2至3級。",
+      "forecastWeather": "大致多雲。",
+      "forecastMaxtemp": {
+        "value": 25,
+        "unit": "攝氏"
+      },
+      "forecastMintemp": {
+        "value": 20,
+        "unit": "攝氏"
+      },
+      "forecastMaxrh": {
+        "value": 75,
+        "unit": "百分比"
+      },
+      "forecastMinrh": {
+        "value": 60,
+        "unit": "百分比"
+      },
+      "ForecastIcon": 52,
+      "PSR": "低"
+    },
+    {
+      "forecastDate": "20250718",
+      "week": "星期五",
+      "forecastWind": "東北風2至3級。",
+      "forecastWeather": "多雲，有幾陣雨。",
+      "forecastMaxtemp": {
+        "value": 23,
+        "unit": "攝氏"
+      },
+      "forecastMintemp": {
+        "value": 19,
+        "unit": "攝氏"
+      },
+      "forecastMaxrh": {
+        "value": 85,
+        "unit": "百分比"
+      },
+      "forecastMinrh": {
+        "value": 65,
+        "unit": "百分比"
+      },
+      "ForecastIcon": 63,
+      "PSR": "中"
+    }
+  ],
+  "updateTime": "2025-07-17T16:30:00+08:00"
+}

@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hong Kong Weather Data Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns"></script>
     <style>
         * {
             margin: 0;
@@ -183,6 +186,101 @@
             background: #74b9ff;
         }
         
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin: 20px 0;
+        }
+        
+        .chart-controls {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .chart-controls select {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        
+        .chart-controls button {
+            padding: 5px 15px;
+            background: #74b9ff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        
+        .chart-controls button:hover {
+            background: #0984e3;
+        }
+        
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .forecast-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid #e9ecef;
+        }
+        
+        .forecast-date {
+            font-weight: bold;
+            color: #2d3436;
+            margin-bottom: 5px;
+        }
+        
+        .forecast-week {
+            font-size: 0.9em;
+            color: #636e72;
+            margin-bottom: 10px;
+        }
+        
+        .forecast-icon {
+            font-size: 2em;
+            margin: 10px 0;
+        }
+        
+        .forecast-temp {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #e17055;
+            margin: 5px 0;
+        }
+        
+        .forecast-weather {
+            font-size: 0.9em;
+            color: #2d3436;
+            margin: 5px 0;
+        }
+        
+        .forecast-details {
+            font-size: 0.8em;
+            color: #636e72;
+            margin-top: 10px;
+        }
+        
+        .general-situation {
+            background: #f1f3f4;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 0.95em;
+            line-height: 1.4;
+        }
+        
         @media (max-width: 768px) {
             .container {
                 padding: 20px;
@@ -197,6 +295,19 @@
             }
             
             .locations-grid {
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            }
+            
+            .chart-container {
+                height: 300px;
+            }
+            
+            .chart-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .forecast-grid {
                 grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
             }
         }
@@ -247,6 +358,38 @@
                 </div>
             </div>
             
+            <!-- Temperature Chart -->
+            <div class="weather-card">
+                <h3>📊 Temperature History</h3>
+                <div class="chart-controls">
+                    <label for="time-range">Time Range:</label>
+                    <select id="time-range">
+                        <option value="24">Last 24 Hours</option>
+                        <option value="48">Last 48 Hours</option>
+                        <option value="72">Last 72 Hours</option>
+                        <option value="168">Last 7 Days</option>
+                        <option value="all" selected>All Time</option>
+                    </select>
+                    <label for="location-filter">Location:</label>
+                    <select id="location-filter">
+                        <option value="香港天文台">香港天文台</option>
+                        <option value="all">All Locations</option>
+                    </select>
+                    <button onclick="updateTemperatureChart()">Update Chart</button>
+                </div>
+                <div class="chart-container">
+                    <canvas id="temperature-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Nine Day Forecast -->
+            <div class="weather-card">
+                <h3>🌤️ 9-Day Weather Forecast</h3>
+                <div id="forecast-content">
+                    <div class="loading">Loading forecast data...</div>
+                </div>
+            </div>
+            
             <div class="last-updated">
                 <div>Last Updated: <span id="last-updated-time">--</span></div>
                 <button class="refresh-btn" onclick="loadWeatherData()">🔄 Refresh Data</button>
@@ -256,6 +399,8 @@
 
     <script>
         let currentWeatherData = null;
+        let temperatureChart = null;
+        let historicalData = [];
         
         // Weather icon mapping
         const weatherIcons = {
@@ -315,7 +460,20 @@
                 const weatherData = await response.json();
                 currentWeatherData = weatherData;
                 
+                // Load historical data for charts
+                await loadHistoricalData();
+                
+                // Load forecast data
+                await loadForecastData();
+                
                 displayWeatherData(weatherData);
+                
+                // Initialize temperature chart if Chart.js is available
+                if (typeof Chart !== 'undefined') {
+                    await initializeTemperatureChart();
+                } else {
+                    console.warn('Chart.js not loaded, skipping chart initialization');
+                }
                 
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('weather-content').style.display = 'block';
@@ -328,21 +486,102 @@
             }
         }
         
-        async function getWeatherFiles() {
+        async function loadHistoricalData() {
             try {
-                // Since we can't directly list files, we'll try to load recent files
-                // This is a simplified approach - in a real implementation you might want to
-                // generate a file list or use a more sophisticated method
-                const now = new Date();
-                const files = [];
+                const files = await getWeatherFiles();
+                historicalData = [];
                 
-                // Try to find files from the last 24 hours
-                for (let i = 0; i < 24; i++) {
-                    const date = new Date(now.getTime() - i * 60 * 60 * 1000);
-                    const filename = `weather_${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}_${String(date.getHours()).padStart(2, '0')}${String(date.getMinutes()).padStart(2, '0')}${String(date.getSeconds()).padStart(2, '0')}.json`;
+                // Load last 100 files for historical data (or all available)
+                const maxFiles = Math.min(files.length, 100);
+                
+                for (let i = 0; i < maxFiles; i++) {
+                    try {
+                        const response = await fetch(`weather_data/${files[i]}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            const timestamp = extractTimestamp(files[i]);
+                            
+                            historicalData.push({
+                                timestamp: timestamp,
+                                filename: files[i],
+                                data: data
+                            });
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to load ${files[i]}:`, error);
+                    }
+                }
+                
+                // Sort by timestamp
+                historicalData.sort((a, b) => a.timestamp - b.timestamp);
+                
+            } catch (error) {
+                console.error('Error loading historical data:', error);
+            }
+        }
+        
+        function extractTimestamp(filename) {
+            const match = filename.match(/weather_(\d{8})_(\d{6})\.json/);
+            if (match) {
+                const [, dateStr, timeStr] = match;
+                const year = parseInt(dateStr.substring(0, 4));
+                const month = parseInt(dateStr.substring(4, 6)) - 1; // months are 0-indexed
+                const day = parseInt(dateStr.substring(6, 8));
+                const hour = parseInt(timeStr.substring(0, 2));
+                const minute = parseInt(timeStr.substring(2, 4));
+                const second = parseInt(timeStr.substring(4, 6));
+                
+                return new Date(year, month, day, hour, minute, second);
+            }
+            return new Date();
+        }
+        
+        async function loadForecastData() {
+            try {
+                // Try to load the most recent forecast file
+                const forecastFiles = await getForecastFiles();
+                
+                if (forecastFiles.length > 0) {
+                    const response = await fetch(`NineDayForecast/${forecastFiles[0]}`);
+                    if (response.ok) {
+                        const forecastData = await response.json();
+                        displayForecastData(forecastData);
+                        return;
+                    }
+                }
+                
+                // Fallback to sample data if no forecast files found
+                const response = await fetch('NineDayForecast/forecast_sample.json');
+                if (response.ok) {
+                    const forecastData = await response.json();
+                    displayForecastData(forecastData);
+                } else {
+                    document.getElementById('forecast-content').innerHTML = '<div class="error">No forecast data available</div>';
+                }
+                
+            } catch (error) {
+                console.error('Error loading forecast data:', error);
+                document.getElementById('forecast-content').innerHTML = '<div class="error">Error loading forecast data</div>';
+            }
+        }
+        
+        async function getForecastFiles() {
+            const files = [];
+            const now = new Date();
+            
+            // Try to find forecast files from the last 7 days
+            for (let i = 0; i < 7; i++) {
+                const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+                
+                // Try multiple times per day
+                for (let hour = 0; hour < 24; hour++) {
+                    const testDate = new Date(date);
+                    testDate.setHours(hour, 0, 0, 0);
+                    
+                    const filename = `forecast_${testDate.getFullYear()}${String(testDate.getMonth() + 1).padStart(2, '0')}${String(testDate.getDate()).padStart(2, '0')}_${String(testDate.getHours()).padStart(2, '0')}${String(testDate.getMinutes()).padStart(2, '0')}${String(testDate.getSeconds()).padStart(2, '0')}.json`;
                     
                     try {
-                        const response = await fetch(`weather_data/${filename}`);
+                        const response = await fetch(`NineDayForecast/${filename}`, { method: 'HEAD' });
                         if (response.ok) {
                             files.push(filename);
                         }
@@ -350,33 +589,142 @@
                         // File doesn't exist, continue
                     }
                 }
-                
-                // If no files found in last 24 hours, try some known files
-                if (files.length === 0) {
-                    const knownFiles = [
-                        'weather_20250627_062335.json',
-                        'weather_20250705_090913.json',
-                        'weather_20250715_061555.json'
-                    ];
-                    
-                    for (const filename of knownFiles) {
-                        try {
-                            const response = await fetch(`weather_data/${filename}`);
-                            if (response.ok) {
-                                files.push(filename);
-                            }
-                        } catch (e) {
-                            // File doesn't exist, continue
-                        }
-                    }
-                }
-                
-                return files.sort().reverse(); // Most recent first
-                
-            } catch (error) {
-                console.error('Error getting weather files:', error);
-                return [];
             }
+            
+            return files.sort().reverse(); // Most recent first
+        }
+        
+        function displayForecastData(data) {
+            const container = document.getElementById('forecast-content');
+            container.innerHTML = '';
+            
+            // Display general situation
+            if (data.generalSituation) {
+                const situationDiv = document.createElement('div');
+                situationDiv.className = 'general-situation';
+                situationDiv.innerHTML = `<strong>天氣概況:</strong> ${data.generalSituation}`;
+                container.appendChild(situationDiv);
+            }
+            
+            // Display forecast grid
+            if (data.weatherForecast && data.weatherForecast.length > 0) {
+                const gridDiv = document.createElement('div');
+                gridDiv.className = 'forecast-grid';
+                
+                data.weatherForecast.forEach(forecast => {
+                    const forecastDiv = document.createElement('div');
+                    forecastDiv.className = 'forecast-item';
+                    
+                    const date = forecast.forecastDate;
+                    const formattedDate = `${date.substring(4, 6)}/${date.substring(6, 8)}`;
+                    
+                    const icon = getForecastIcon(forecast.ForecastIcon);
+                    
+                    forecastDiv.innerHTML = `
+                        <div class="forecast-date">${formattedDate}</div>
+                        <div class="forecast-week">${forecast.week}</div>
+                        <div class="forecast-icon">${icon}</div>
+                        <div class="forecast-temp">${forecast.forecastMintemp.value}°-${forecast.forecastMaxtemp.value}°C</div>
+                        <div class="forecast-weather">${forecast.forecastWeather}</div>
+                        <div class="forecast-details">
+                            降雨機率: ${forecast.PSR}<br>
+                            濕度: ${forecast.forecastMinrh.value}-${forecast.forecastMaxrh.value}%
+                        </div>
+                    `;
+                    
+                    gridDiv.appendChild(forecastDiv);
+                });
+                
+                container.appendChild(gridDiv);
+            }
+        }
+        
+        function getForecastIcon(iconCode) {
+            const forecastIcons = {
+                50: '☀️',   // Sunny
+                51: '🌤️',   // Sunny Periods
+                52: '🌤️',   // Sunny Intervals
+                53: '🌦️',   // Sunny Periods with A Few Showers
+                54: '🌦️',   // Sunny Intervals with Showers
+                60: '☁️',   // Cloudy
+                61: '⛅',   // Overcast
+                62: '🌧️',   // Light Rain
+                63: '🌧️',   // Rain
+                64: '🌧️',   // Heavy Rain
+                65: '⛈️',   // Thunderstorms
+                70: '🌨️',   // Fine
+                71: '❄️',   // Light Snow
+                72: '❄️',   // Snow
+                73: '❄️',   // Heavy Snow
+                80: '🌫️',   // Windy
+                81: '🌪️',   // Dry
+                82: '🌪️',   // Humid
+                83: '🌫️',   // Fog
+                84: '🌫️',   // Mist
+                85: '🌫️',   // Haze
+                default: '🌤️'
+            };
+            
+            return forecastIcons[iconCode] || forecastIcons.default;
+        }
+        
+        async function getWeatherFiles() {
+            // List of known weather files from the directory
+            const knownFiles = [
+                'weather_20250717_083026.json',
+                'weather_20250716_231010.json',
+                'weather_20250716_221011.json',
+                'weather_20250716_210946.json',
+                'weather_20250716_201128.json',
+                'weather_20250716_191003.json',
+                'weather_20250716_181438.json',
+                'weather_20250716_171220.json',
+                'weather_20250716_161300.json',
+                'weather_20250716_151053.json',
+                'weather_20250716_141021.json',
+                'weather_20250716_133022.json',
+                'weather_20250716_122002.json',
+                'weather_20250716_110918.json',
+                'weather_20250716_101120.json',
+                'weather_20250716_091527.json',
+                'weather_20250716_081440.json',
+                'weather_20250716_071321.json',
+                'weather_20250716_061600.json',
+                'weather_20250716_051658.json',
+                'weather_20250715_230918.json',
+                'weather_20250715_221021.json',
+                'weather_20250715_210738.json',
+                'weather_20250715_201140.json',
+                'weather_20250715_191020.json',
+                'weather_20250715_181459.json',
+                'weather_20250715_170941.json',
+                'weather_20250715_161306.json',
+                'weather_20250715_150947.json',
+                'weather_20250715_141142.json',
+                'weather_20250715_132942.json',
+                'weather_20250715_122015.json',
+                'weather_20250715_110936.json',
+                'weather_20250715_101116.json',
+                'weather_20250715_091928.json',
+                'weather_20250715_081449.json',
+                'weather_20250715_071351.json',
+                'weather_20250715_061555.json'
+            ];
+            
+            const availableFiles = [];
+            
+            for (const filename of knownFiles) {
+                try {
+                    const response = await fetch(`weather_data/${filename}`, { method: 'HEAD' });
+                    if (response.ok) {
+                        availableFiles.push(filename);
+                    }
+                } catch (e) {
+                    // File doesn't exist, continue
+                }
+            }
+            
+            return availableFiles.length > 0 ? availableFiles : knownFiles.slice(0, 10);
         }
         
         function displayWeatherData(data) {
@@ -521,6 +869,179 @@
                 const updateTime = new Date(data.updateTime);
                 lastUpdatedElement.textContent = updateTime.toLocaleString();
             }
+        }
+        
+        async function initializeTemperatureChart() {
+            // Check if Chart.js is loaded
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js is not loaded');
+                return;
+            }
+            
+            const ctx = document.getElementById('temperature-chart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (temperatureChart) {
+                temperatureChart.destroy();
+            }
+            
+            // Populate location filter
+            populateLocationFilter();
+            
+            // Create chart
+            temperatureChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Temperature Over Time'
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Temperature (°C)'
+                            }
+                        }
+                    },
+                    elements: {
+                        point: {
+                            radius: 3
+                        }
+                    }
+                }
+            });
+            
+            // Update chart with data
+            updateTemperatureChart();
+        }
+        
+        function populateLocationFilter() {
+            const locationFilter = document.getElementById('location-filter');
+            const locations = new Set();
+            
+            // Collect all unique locations from historical data
+            historicalData.forEach(item => {
+                if (item.data.temperature && item.data.temperature.data) {
+                    item.data.temperature.data.forEach(temp => {
+                        locations.add(temp.place);
+                    });
+                }
+            });
+            
+            // Clear existing options except first two
+            while (locationFilter.options.length > 2) {
+                locationFilter.remove(2);
+            }
+            
+            // Add locations to filter
+            Array.from(locations).sort().forEach(location => {
+                if (location !== '香港天文台') {
+                    const option = document.createElement('option');
+                    option.value = location;
+                    option.textContent = location;
+                    locationFilter.appendChild(option);
+                }
+            });
+        }
+        
+        function updateTemperatureChart() {
+            if (!temperatureChart || historicalData.length === 0) return;
+            
+            const timeRange = document.getElementById('time-range').value;
+            const locationFilter = document.getElementById('location-filter').value;
+            
+            // Filter data by time range
+            let filteredData = historicalData;
+            if (timeRange !== 'all') {
+                const hoursBack = parseInt(timeRange);
+                const cutoffTime = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
+                filteredData = historicalData.filter(item => item.timestamp >= cutoffTime);
+            }
+            
+            // Prepare chart data
+            const labels = filteredData.map(item => item.timestamp.toLocaleDateString() + ' ' + item.timestamp.toLocaleTimeString());
+            const datasets = [];
+            
+            if (locationFilter === 'all') {
+                // Show multiple locations with different colors
+                const colors = [
+                    '#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff',
+                    '#ff9f40', '#ff6384', '#c9cbcf', '#4bc0c0', '#ff6384'
+                ];
+                
+                const locationData = {};
+                
+                // Group data by location
+                filteredData.forEach(item => {
+                    if (item.data.temperature && item.data.temperature.data) {
+                        item.data.temperature.data.forEach(temp => {
+                            if (!locationData[temp.place]) {
+                                locationData[temp.place] = [];
+                            }
+                            locationData[temp.place].push(temp.value);
+                        });
+                    }
+                });
+                
+                // Create datasets for top 5 locations
+                let colorIndex = 0;
+                Object.keys(locationData).slice(0, 5).forEach(location => {
+                    datasets.push({
+                        label: location,
+                        data: locationData[location],
+                        borderColor: colors[colorIndex % colors.length],
+                        backgroundColor: colors[colorIndex % colors.length] + '20',
+                        fill: false,
+                        tension: 0.1
+                    });
+                    colorIndex++;
+                });
+            } else {
+                // Show single location
+                const temperatureData = [];
+                
+                filteredData.forEach(item => {
+                    if (item.data.temperature && item.data.temperature.data) {
+                        const temp = item.data.temperature.data.find(t => t.place === locationFilter);
+                        if (temp) {
+                            temperatureData.push(temp.value);
+                        }
+                    }
+                });
+                
+                datasets.push({
+                    label: locationFilter,
+                    data: temperatureData,
+                    borderColor: '#74b9ff',
+                    backgroundColor: '#74b9ff20',
+                    fill: false,
+                    tension: 0.1
+                });
+            }
+            
+            // Update chart
+            temperatureChart.data.labels = labels;
+            temperatureChart.data.datasets = datasets;
+            temperatureChart.update();
         }
         
         // Load weather data when page loads
