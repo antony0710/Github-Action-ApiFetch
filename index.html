@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hong Kong Weather Data Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #74b9ff, #0984e3);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #2d3436;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .loading {
+            text-align: center;
+            font-size: 1.2em;
+            color: #636e72;
+            margin: 50px 0;
+        }
+        
+        .error {
+            background: #ff7675;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .weather-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .weather-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid #0984e3;
+        }
+        
+        .weather-card h3 {
+            color: #2d3436;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .current-weather {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        .weather-icon {
+            font-size: 4em;
+            margin-right: 20px;
+        }
+        
+        .weather-details {
+            flex: 1;
+        }
+        
+        .temperature {
+            font-size: 3em;
+            font-weight: bold;
+            color: #e17055;
+        }
+        
+        .humidity {
+            font-size: 1.2em;
+            color: #74b9ff;
+            margin-top: 5px;
+        }
+        
+        .warning {
+            background: #fdcb6e;
+            border: 1px solid #e17055;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        
+        .warning.alert {
+            background: #ff7675;
+            color: white;
+        }
+        
+        .locations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .location-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e9ecef;
+        }
+        
+        .location-name {
+            font-size: 0.9em;
+            color: #636e72;
+            margin-bottom: 5px;
+        }
+        
+        .location-value {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #2d3436;
+        }
+        
+        .rainfall-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .rainfall-item:last-child {
+            border-bottom: none;
+        }
+        
+        .rainfall-value {
+            font-weight: bold;
+            color: #74b9ff;
+        }
+        
+        .last-updated {
+            text-align: center;
+            color: #636e72;
+            font-size: 0.9em;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        
+        .refresh-btn {
+            background: #0984e3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-top: 15px;
+            transition: background 0.3s;
+        }
+        
+        .refresh-btn:hover {
+            background: #74b9ff;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            .weather-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .locations-grid {
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌦️ Hong Kong Weather Dashboard</h1>
+        
+        <div id="loading" class="loading">
+            Loading weather data...
+        </div>
+        
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <div id="weather-content" style="display: none;">
+            <div class="weather-grid">
+                <!-- Current Weather Card -->
+                <div class="weather-card">
+                    <h3>Current Weather</h3>
+                    <div class="current-weather">
+                        <div class="weather-icon" id="weather-icon">🌤️</div>
+                        <div class="weather-details">
+                            <div class="temperature" id="current-temp">--°C</div>
+                            <div class="humidity" id="current-humidity">Humidity: --%</div>
+                            <div id="uv-index" style="margin-top: 5px; font-size: 0.9em; color: #636e72;"></div>
+                        </div>
+                    </div>
+                    <div id="warnings"></div>
+                </div>
+                
+                <!-- Temperature Readings -->
+                <div class="weather-card">
+                    <h3>Temperature Readings</h3>
+                    <div class="locations-grid" id="temperature-locations"></div>
+                </div>
+                
+                <!-- Rainfall Data -->
+                <div class="weather-card">
+                    <h3>Rainfall Data</h3>
+                    <div id="rainfall-data"></div>
+                </div>
+                
+                <!-- Lightning Warnings -->
+                <div class="weather-card" id="lightning-card" style="display: none;">
+                    <h3>⚡ Lightning Warnings</h3>
+                    <div id="lightning-data"></div>
+                </div>
+            </div>
+            
+            <div class="last-updated">
+                <div>Last Updated: <span id="last-updated-time">--</span></div>
+                <button class="refresh-btn" onclick="loadWeatherData()">🔄 Refresh Data</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentWeatherData = null;
+        
+        // Weather icon mapping
+        const weatherIcons = {
+            50: '☀️',  // Sunny
+            51: '🌤️',  // Sunny Periods
+            52: '🌤️',  // Sunny Intervals
+            53: '🌤️',  // Sunny Periods with A Few Showers
+            54: '🌤️',  // Sunny Intervals with Showers
+            60: '☁️',  // Cloudy
+            61: '⛅',  // Overcast
+            62: '🌩️',  // Light Rain
+            63: '🌧️',  // Rain
+            64: '⛈️',  // Heavy Rain
+            65: '⛈️',  // Thunderstorms
+            70: '🌨️',  // Fine
+            71: '🌨️',  // Light Snow
+            72: '❄️',  // Snow
+            73: '❄️',  // Heavy Snow
+            74: '🌨️',  // Sleet
+            75: '🌨️',  // Light Sleet
+            76: '🌨️',  // Sleet and Snow
+            77: '🌨️',  // Hail
+            80: '🌫️',  // Windy
+            81: '🌪️',  // Dry
+            82: '🌪️',  // Humid
+            83: '🌫️',  // Fog
+            84: '🌫️',  // Mist
+            85: '🌫️',  // Haze
+            90: '🌡️',  // Hot
+            91: '🌡️',  // Warm
+            92: '🧊',  // Cool
+            93: '🧊',  // Cold
+            default: '🌤️'
+        };
+        
+        async function loadWeatherData() {
+            try {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('error').style.display = 'none';
+                document.getElementById('weather-content').style.display = 'none';
+                
+                // Get list of weather files
+                const weatherFiles = await getWeatherFiles();
+                
+                if (weatherFiles.length === 0) {
+                    throw new Error('No weather data files found');
+                }
+                
+                // Load the most recent weather data
+                const latestFile = weatherFiles[0];
+                const response = await fetch(`weather_data/${latestFile}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const weatherData = await response.json();
+                currentWeatherData = weatherData;
+                
+                displayWeatherData(weatherData);
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('weather-content').style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error loading weather data:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = `Error loading weather data: ${error.message}`;
+            }
+        }
+        
+        async function getWeatherFiles() {
+            try {
+                // Since we can't directly list files, we'll try to load recent files
+                // This is a simplified approach - in a real implementation you might want to
+                // generate a file list or use a more sophisticated method
+                const now = new Date();
+                const files = [];
+                
+                // Try to find files from the last 24 hours
+                for (let i = 0; i < 24; i++) {
+                    const date = new Date(now.getTime() - i * 60 * 60 * 1000);
+                    const filename = `weather_${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}_${String(date.getHours()).padStart(2, '0')}${String(date.getMinutes()).padStart(2, '0')}${String(date.getSeconds()).padStart(2, '0')}.json`;
+                    
+                    try {
+                        const response = await fetch(`weather_data/${filename}`);
+                        if (response.ok) {
+                            files.push(filename);
+                        }
+                    } catch (e) {
+                        // File doesn't exist, continue
+                    }
+                }
+                
+                // If no files found in last 24 hours, try some known files
+                if (files.length === 0) {
+                    const knownFiles = [
+                        'weather_20250627_062335.json',
+                        'weather_20250705_090913.json',
+                        'weather_20250715_061555.json'
+                    ];
+                    
+                    for (const filename of knownFiles) {
+                        try {
+                            const response = await fetch(`weather_data/${filename}`);
+                            if (response.ok) {
+                                files.push(filename);
+                            }
+                        } catch (e) {
+                            // File doesn't exist, continue
+                        }
+                    }
+                }
+                
+                return files.sort().reverse(); // Most recent first
+                
+            } catch (error) {
+                console.error('Error getting weather files:', error);
+                return [];
+            }
+        }
+        
+        function displayWeatherData(data) {
+            // Display current weather
+            displayCurrentWeather(data);
+            
+            // Display temperature readings
+            displayTemperatureReadings(data);
+            
+            // Display rainfall data
+            displayRainfallData(data);
+            
+            // Display lightning warnings
+            displayLightningWarnings(data);
+            
+            // Display last updated time
+            displayLastUpdated(data);
+        }
+        
+        function displayCurrentWeather(data) {
+            // Set weather icon
+            const iconElement = document.getElementById('weather-icon');
+            const weatherIcon = data.icon && data.icon[0] ? weatherIcons[data.icon[0]] || weatherIcons.default : weatherIcons.default;
+            iconElement.textContent = weatherIcon;
+            
+            // Set temperature (use Hong Kong Observatory as primary)
+            const tempElement = document.getElementById('current-temp');
+            const hkoTemp = data.temperature?.data?.find(t => t.place === '香港天文台');
+            if (hkoTemp) {
+                tempElement.textContent = `${hkoTemp.value}°${hkoTemp.unit}`;
+            } else if (data.temperature?.data?.length > 0) {
+                tempElement.textContent = `${data.temperature.data[0].value}°${data.temperature.data[0].unit}`;
+            }
+            
+            // Set humidity
+            const humidityElement = document.getElementById('current-humidity');
+            if (data.humidity?.data?.length > 0) {
+                humidityElement.textContent = `Humidity: ${data.humidity.data[0].value}%`;
+            }
+            
+            // Set UV index
+            const uvElement = document.getElementById('uv-index');
+            if (data.uvindex?.data?.length > 0) {
+                const uvData = data.uvindex.data[0];
+                uvElement.textContent = `UV Index: ${uvData.value} (${uvData.desc})`;
+            }
+            
+            // Display warnings
+            displayWarnings(data);
+        }
+        
+        function displayWarnings(data) {
+            const warningsContainer = document.getElementById('warnings');
+            warningsContainer.innerHTML = '';
+            
+            if (data.warningMessage && data.warningMessage.length > 0) {
+                data.warningMessage.forEach(warning => {
+                    const warningDiv = document.createElement('div');
+                    warningDiv.className = 'warning alert';
+                    warningDiv.textContent = warning;
+                    warningsContainer.appendChild(warningDiv);
+                });
+            }
+        }
+        
+        function displayTemperatureReadings(data) {
+            const container = document.getElementById('temperature-locations');
+            container.innerHTML = '';
+            
+            if (data.temperature?.data) {
+                data.temperature.data.forEach(temp => {
+                    const locationDiv = document.createElement('div');
+                    locationDiv.className = 'location-item';
+                    locationDiv.innerHTML = `
+                        <div class="location-name">${temp.place}</div>
+                        <div class="location-value">${temp.value}°${temp.unit}</div>
+                    `;
+                    container.appendChild(locationDiv);
+                });
+            }
+        }
+        
+        function displayRainfallData(data) {
+            const container = document.getElementById('rainfall-data');
+            container.innerHTML = '';
+            
+            if (data.rainfall?.data) {
+                data.rainfall.data.forEach(rain => {
+                    const rainfallDiv = document.createElement('div');
+                    rainfallDiv.className = 'rainfall-item';
+                    
+                    let rainfallText = '';
+                    if (rain.max !== undefined) {
+                        if (rain.min !== undefined) {
+                            rainfallText = `${rain.min}-${rain.max} ${rain.unit}`;
+                        } else {
+                            rainfallText = `${rain.max} ${rain.unit}`;
+                        }
+                    }
+                    
+                    rainfallDiv.innerHTML = `
+                        <span>${rain.place}</span>
+                        <span class="rainfall-value">${rainfallText}</span>
+                    `;
+                    container.appendChild(rainfallDiv);
+                });
+            }
+        }
+        
+        function displayLightningWarnings(data) {
+            const lightningCard = document.getElementById('lightning-card');
+            const lightningContainer = document.getElementById('lightning-data');
+            
+            if (data.lightning?.data && data.lightning.data.length > 0) {
+                lightningCard.style.display = 'block';
+                lightningContainer.innerHTML = '';
+                
+                data.lightning.data.forEach(lightning => {
+                    if (lightning.occur === 'true') {
+                        const lightningDiv = document.createElement('div');
+                        lightningDiv.className = 'warning alert';
+                        lightningDiv.textContent = `Lightning detected in ${lightning.place}`;
+                        lightningContainer.appendChild(lightningDiv);
+                    }
+                });
+                
+                if (data.lightning.startTime && data.lightning.endTime) {
+                    const timeDiv = document.createElement('div');
+                    timeDiv.style.marginTop = '10px';
+                    timeDiv.style.fontSize = '0.9em';
+                    timeDiv.textContent = `Valid from ${new Date(data.lightning.startTime).toLocaleString()} to ${new Date(data.lightning.endTime).toLocaleString()}`;
+                    lightningContainer.appendChild(timeDiv);
+                }
+            } else {
+                lightningCard.style.display = 'none';
+            }
+        }
+        
+        function displayLastUpdated(data) {
+            const lastUpdatedElement = document.getElementById('last-updated-time');
+            if (data.updateTime) {
+                const updateTime = new Date(data.updateTime);
+                lastUpdatedElement.textContent = updateTime.toLocaleString();
+            }
+        }
+        
+        // Load weather data when page loads
+        window.addEventListener('load', loadWeatherData);
+        
+        // Refresh data every 5 minutes
+        setInterval(loadWeatherData, 5 * 60 * 1000);
+    </script>
+</body>
+</html>

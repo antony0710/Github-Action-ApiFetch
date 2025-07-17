@@ -1,0 +1,16 @@
+title: Hong Kong Weather Dashboard
+description: Real-time weather data visualization for Hong Kong
+theme: minima
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+
+# GitHub Pages configuration
+include:
+  - weather_data
+
+# Exclude unnecessary files from the site
+exclude:
+  - .github
+  - README.md
+  - readme.md
