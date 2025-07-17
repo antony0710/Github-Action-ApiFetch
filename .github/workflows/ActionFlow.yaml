@@ -25,10 +25,13 @@ jobs:
         run: |
           echo "now=$(date '+%Y%m%d_%H%M%S')" >> $GITHUB_OUTPUT
       - name: 建立 weather_data 資料夾（如不存在）
-        run: mkdir -p weather_data
+        run: mkdir -p weather_data NineDayForecast
       - name: 抓取天氣並儲存為 json
         run: |
           curl "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=tc" -o "weather_data/weather_${{ steps.datetime.outputs.now }}.json"
+      - name: 抓取九天天氣預報並儲存為 json
+        run: |
+          curl "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=fnd&lang=tc" -o "NineDayForecast/forecast_${{ steps.datetime.outputs.now }}.json"
       - name: 設置 Git 用戶（Actions 專用）
         run: |
           git config --global user.name "github-actions[bot]"
@@ -36,7 +39,7 @@ jobs:
 
       - name: commit 並 push 新增的 json
         run: |
-          git add weather_data/*.json
+          git add weather_data/*.json NineDayForecast/*.json
           git commit -m "新增天氣數據: ${{ steps.datetime.outputs.now }}" || echo "No changes to commit"
           git push
         env:
