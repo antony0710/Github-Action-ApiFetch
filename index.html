@@ -46,6 +46,27 @@
             margin: 50px 0;
         }
         
+        .loading-progress {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #74b9ff;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .uv-index {
+            margin-top: 5px;
+            font-size: 0.9em;
+            color: #636e72;
+        }
+        
+        .lightning-time {
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        
         .error {
             background: #ff7675;
             color: white;
@@ -318,12 +339,13 @@
         <h1>🌦️ Hong Kong Weather Dashboard</h1>
         
         <div id="loading" class="loading">
-            Loading weather data...
+            <div>Loading weather data...</div>
+            <div id="loading-progress" class="loading-progress"></div>
         </div>
         
-        <div id="error" class="error" style="display: none;"></div>
+        <div id="error" class="error hidden"></div>
         
-        <div id="weather-content" style="display: none;">
+        <div id="weather-content" class="hidden">
             <div class="weather-grid">
                 <!-- Current Weather Card -->
                 <div class="weather-card">
@@ -333,7 +355,7 @@
                         <div class="weather-details">
                             <div class="temperature" id="current-temp">--°C</div>
                             <div class="humidity" id="current-humidity">Humidity: --%</div>
-                            <div id="uv-index" style="margin-top: 5px; font-size: 0.9em; color: #636e72;"></div>
+                            <div id="uv-index" class="uv-index"></div>
                         </div>
                     </div>
                     <div id="warnings"></div>
@@ -352,7 +374,7 @@
                 </div>
                 
                 <!-- Lightning Warnings -->
-                <div class="weather-card" id="lightning-card" style="display: none;">
+                <div class="weather-card hidden" id="lightning-card">
                     <h3>⚡ Lightning Warnings</h3>
                     <div id="lightning-data"></div>
                 </div>
@@ -438,35 +460,29 @@
         
         async function loadWeatherData() {
             try {
-                document.getElementById('loading').style.display = 'block';
-                document.getElementById('error').style.display = 'none';
-                document.getElementById('weather-content').style.display = 'none';
+                document.getElementById('loading').classList.remove('hidden');
+                document.getElementById('error').classList.add('hidden');
+                document.getElementById('weather-content').classList.add('hidden');
                 
-                // Get list of weather files
+                // Get list of weather files from index.json
                 const weatherFiles = await getWeatherFiles();
                 
                 if (weatherFiles.length === 0) {
                     throw new Error('No weather data files found');
                 }
                 
-                // Load the most recent weather data
-                const latestFile = weatherFiles[0];
-                const response = await fetch(`weather_data/${latestFile}`);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const weatherData = await response.json();
-                currentWeatherData = weatherData;
-                
-                // Load historical data for charts
-                await loadHistoricalData();
+                // Load all weather data at once
+                await loadAllWeatherData(weatherFiles);
                 
                 // Load forecast data
                 await loadForecastData();
                 
-                displayWeatherData(weatherData);
+                // Display the most recent weather data
+                if (historicalData.length > 0) {
+                    const latestData = historicalData[historicalData.length - 1];
+                    currentWeatherData = latestData.data;
+                    displayWeatherData(latestData.data);
+                }
                 
                 // Initialize temperature chart if Chart.js is available
                 if (typeof Chart !== 'undefined') {
@@ -475,48 +491,103 @@
                     console.warn('Chart.js not loaded, skipping chart initialization');
                 }
                 
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('weather-content').style.display = 'block';
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('weather-content').classList.remove('hidden');
                 
             } catch (error) {
                 console.error('Error loading weather data:', error);
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').style.display = 'block';
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error').classList.remove('hidden');
                 document.getElementById('error').textContent = `Error loading weather data: ${error.message}`;
             }
         }
         
-        async function loadHistoricalData() {
+        async function loadAllWeatherData(files) {
             try {
-                const files = await getWeatherFiles();
                 historicalData = [];
+                const batchSize = 10; // Process files in batches to avoid overwhelming the browser
+                const progressElement = document.getElementById('loading-progress');
                 
-                // Load last 100 files for historical data (or all available)
-                const maxFiles = Math.min(files.length, 100);
+                console.log(`Loading ${files.length} weather files...`);
                 
-                for (let i = 0; i < maxFiles; i++) {
-                    try {
-                        const response = await fetch(`weather_data/${files[i]}`);
-                        if (response.ok) {
-                            const data = await response.json();
-                            const timestamp = extractTimestamp(files[i]);
-                            
-                            historicalData.push({
-                                timestamp: timestamp,
-                                filename: files[i],
-                                data: data
-                            });
-                        }
-                    } catch (error) {
-                        console.warn(`Failed to load ${files[i]}:`, error);
+                // Process files in batches
+                for (let i = 0; i < files.length; i += batchSize) {
+                    const batch = files.slice(i, i + batchSize);
+                    
+                    // Update progress display
+                    const progress = Math.min(100, Math.round((i / files.length) * 100));
+                    if (progressElement) {
+                        progressElement.textContent = `Loading weather data: ${progress}% (${i}/${files.length} files)`;
                     }
+                    
+                    // Create promises for all files in this batch
+                    const promises = batch.map(async (filename) => {
+                        try {
+                            const response = await fetch(`weather_data/${filename}`);
+                            if (response.ok) {
+                                const data = await response.json();
+                                const timestamp = extractTimestamp(filename);
+                                
+                                return {
+                                    timestamp: timestamp,
+                                    filename: filename,
+                                    data: data
+                                };
+                            } else {
+                                console.warn(`Failed to load ${filename}: ${response.status}`);
+                                return null;
+                            }
+                        } catch (error) {
+                            console.warn(`Error loading ${filename}:`, error);
+                            return null;
+                        }
+                    });
+                    
+                    // Wait for all promises in this batch to complete
+                    const batchResults = await Promise.all(promises);
+                    
+                    // Filter out null results and add to historical data
+                    batchResults.forEach(result => {
+                        if (result) {
+                            historicalData.push(result);
+                        }
+                    });
+                    
+                    // Small delay to prevent overwhelming the browser
+                    await new Promise(resolve => setTimeout(resolve, 50));
                 }
                 
-                // Sort by timestamp
+                // Sort by timestamp (oldest first, newest last)
                 historicalData.sort((a, b) => a.timestamp - b.timestamp);
                 
+                // Final progress update with statistics
+                if (progressElement) {
+                    progressElement.textContent = `Loaded ${historicalData.length} weather files successfully`;
+                }
+                
+                // Log time range statistics
+                if (historicalData.length > 0) {
+                    const firstRecord = historicalData[0];
+                    const lastRecord = historicalData[historicalData.length - 1];
+                    const timeSpan = lastRecord.timestamp - firstRecord.timestamp;
+                    const hours = Math.round(timeSpan / (1000 * 60 * 60));
+                    const averageInterval = Math.round(timeSpan / (historicalData.length - 1) / (1000 * 60));
+                    
+                    console.log(`Time range: ${firstRecord.timestamp.toLocaleString()} to ${lastRecord.timestamp.toLocaleString()}`);
+                    console.log(`Total time span: ${hours} hours`);
+                    console.log(`Average interval between records: ${averageInterval} minutes`);
+                    console.log(`Expected records (hourly): ${hours}, Actual records: ${historicalData.length}`);
+                }
+                
+                console.log(`Successfully loaded ${historicalData.length} weather files`);
+                
             } catch (error) {
-                console.error('Error loading historical data:', error);
+                console.error('Error loading all weather data:', error);
+                const progressElement = document.getElementById('loading-progress');
+                if (progressElement) {
+                    progressElement.textContent = `Error loading weather data: ${error.message}`;
+                }
+                throw error;
             }
         }
         
@@ -566,6 +637,21 @@
         }
         
         async function getForecastFiles() {
+            try {
+                // Try to load forecast index file if it exists
+                const response = await fetch('NineDayForecast/index.json');
+                
+                if (response.ok) {
+                    const indexData = await response.json();
+                    if (indexData.files && Array.isArray(indexData.files)) {
+                        return indexData.files.sort().reverse(); // Most recent first
+                    }
+                }
+            } catch (error) {
+                console.warn('Forecast index.json not found, falling back to file discovery');
+            }
+            
+            // Fallback to original method
             const files = [];
             const now = new Date();
             
@@ -669,62 +755,48 @@
         }
         
         async function getWeatherFiles() {
-            // List of known weather files from the directory
-            const knownFiles = [
-                'weather_20250717_083026.json',
-                'weather_20250716_231010.json',
-                'weather_20250716_221011.json',
-                'weather_20250716_210946.json',
-                'weather_20250716_201128.json',
-                'weather_20250716_191003.json',
-                'weather_20250716_181438.json',
-                'weather_20250716_171220.json',
-                'weather_20250716_161300.json',
-                'weather_20250716_151053.json',
-                'weather_20250716_141021.json',
-                'weather_20250716_133022.json',
-                'weather_20250716_122002.json',
-                'weather_20250716_110918.json',
-                'weather_20250716_101120.json',
-                'weather_20250716_091527.json',
-                'weather_20250716_081440.json',
-                'weather_20250716_071321.json',
-                'weather_20250716_061600.json',
-                'weather_20250716_051658.json',
-                'weather_20250715_230918.json',
-                'weather_20250715_221021.json',
-                'weather_20250715_210738.json',
-                'weather_20250715_201140.json',
-                'weather_20250715_191020.json',
-                'weather_20250715_181459.json',
-                'weather_20250715_170941.json',
-                'weather_20250715_161306.json',
-                'weather_20250715_150947.json',
-                'weather_20250715_141142.json',
-                'weather_20250715_132942.json',
-                'weather_20250715_122015.json',
-                'weather_20250715_110936.json',
-                'weather_20250715_101116.json',
-                'weather_20250715_091928.json',
-                'weather_20250715_081449.json',
-                'weather_20250715_071351.json',
-                'weather_20250715_061555.json'
-            ];
-            
-            const availableFiles = [];
-            
-            for (const filename of knownFiles) {
-                try {
-                    const response = await fetch(`weather_data/${filename}`, { method: 'HEAD' });
-                    if (response.ok) {
-                        availableFiles.push(filename);
-                    }
-                } catch (e) {
-                    // File doesn't exist, continue
+            try {
+                // Load the index.json file to get the list of all weather files
+                const response = await fetch('weather_data/index.json');
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load index.json: ${response.status}`);
                 }
+                
+                const indexData = await response.json();
+                
+                if (!indexData.files || !Array.isArray(indexData.files)) {
+                    throw new Error('Invalid format in index.json');
+                }
+                
+                // Sort files by filename (which includes timestamp) in descending order
+                // This ensures the newest files are at the beginning
+                const sortedFiles = indexData.files.sort((a, b) => b.localeCompare(a));
+                
+                console.log(`Found ${sortedFiles.length} weather files in index.json`);
+                
+                return sortedFiles;
+                
+            } catch (error) {
+                console.error('Error loading weather files index:', error);
+                
+                // Fallback to hardcoded list if index.json is not available
+                console.log('Falling back to hardcoded file list');
+                const fallbackFiles = [
+                    'weather_20250717_083026.json',
+                    'weather_20250716_231010.json',
+                    'weather_20250716_221011.json',
+                    'weather_20250716_210946.json',
+                    'weather_20250716_201128.json',
+                    'weather_20250716_191003.json',
+                    'weather_20250716_181438.json',
+                    'weather_20250716_171220.json',
+                    'weather_20250716_161300.json',
+                    'weather_20250716_151053.json'
+                ];
+                
+                return fallbackFiles;
             }
-            
-            return availableFiles.length > 0 ? availableFiles : knownFiles.slice(0, 10);
         }
         
         function displayWeatherData(data) {
@@ -839,7 +911,7 @@
             const lightningContainer = document.getElementById('lightning-data');
             
             if (data.lightning?.data && data.lightning.data.length > 0) {
-                lightningCard.style.display = 'block';
+                lightningCard.classList.remove('hidden');
                 lightningContainer.innerHTML = '';
                 
                 data.lightning.data.forEach(lightning => {
@@ -853,13 +925,12 @@
                 
                 if (data.lightning.startTime && data.lightning.endTime) {
                     const timeDiv = document.createElement('div');
-                    timeDiv.style.marginTop = '10px';
-                    timeDiv.style.fontSize = '0.9em';
+                    timeDiv.className = 'lightning-time';
                     timeDiv.textContent = `Valid from ${new Date(data.lightning.startTime).toLocaleString()} to ${new Date(data.lightning.endTime).toLocaleString()}`;
                     lightningContainer.appendChild(timeDiv);
                 }
             } else {
-                lightningCard.style.display = 'none';
+                lightningCard.classList.add('hidden');
             }
         }
         
@@ -892,7 +963,6 @@
             temperatureChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: [],
                     datasets: []
                 },
                 options: {
@@ -910,6 +980,13 @@
                     },
                     scales: {
                         x: {
+                            type: 'time',
+                            time: {
+                                unit: 'hour',
+                                displayFormats: {
+                                    hour: 'MM/dd HH:mm'
+                                }
+                            },
                             title: {
                                 display: true,
                                 text: 'Time'
@@ -977,8 +1054,6 @@
                 filteredData = historicalData.filter(item => item.timestamp >= cutoffTime);
             }
             
-            // Prepare chart data
-            const labels = filteredData.map(item => item.timestamp.toLocaleDateString() + ' ' + item.timestamp.toLocaleTimeString());
             const datasets = [];
             
             if (locationFilter === 'all') {
@@ -990,14 +1065,17 @@
                 
                 const locationData = {};
                 
-                // Group data by location
+                // Group data by location with proper time-value pairing
                 filteredData.forEach(item => {
                     if (item.data.temperature && item.data.temperature.data) {
                         item.data.temperature.data.forEach(temp => {
                             if (!locationData[temp.place]) {
                                 locationData[temp.place] = [];
                             }
-                            locationData[temp.place].push(temp.value);
+                            locationData[temp.place].push({
+                                x: item.timestamp,
+                                y: temp.value
+                            });
                         });
                     }
                 });
@@ -1023,7 +1101,10 @@
                     if (item.data.temperature && item.data.temperature.data) {
                         const temp = item.data.temperature.data.find(t => t.place === locationFilter);
                         if (temp) {
-                            temperatureData.push(temp.value);
+                            temperatureData.push({
+                                x: item.timestamp,
+                                y: temp.value
+                            });
                         }
                     }
                 });
@@ -1039,7 +1120,6 @@
             }
             
             // Update chart
-            temperatureChart.data.labels = labels;
             temperatureChart.data.datasets = datasets;
             temperatureChart.update();
         }

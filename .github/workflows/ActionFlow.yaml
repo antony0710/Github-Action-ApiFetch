@@ -32,6 +32,9 @@ jobs:
       - name: 抓取九天天氣預報並儲存為 json
         run: |
           curl "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=fnd&lang=tc" -o "NineDayForecast/forecast_${{ steps.datetime.outputs.now }}.json"
+      - name: 更新 index.json 檔案列表
+        run: |
+          python gen_index.py
       - name: 設置 Git 用戶（Actions 專用）
         run: |
           git config --global user.name "github-actions[bot]"
@@ -39,7 +42,7 @@ jobs:
 
       - name: commit 並 push 新增的 json
         run: |
-          git add weather_data/*.json NineDayForecast/*.json
+          git add weather_data/*.json NineDayForecast/*.json index.json
           git commit -m "新增天氣數據: ${{ steps.datetime.outputs.now }}" || echo "No changes to commit"
           git push
         env:
