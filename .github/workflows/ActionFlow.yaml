@@ -42,7 +42,7 @@ jobs:
 
       - name: commit 並 push 新增的 json
         run: |
-          git add weather_data/*.json NineDayForecast/*.json index.json
+          git add weather_data/*.json NineDayForecast/*.json weather_data/index.json
           git commit -m "新增天氣數據: ${{ steps.datetime.outputs.now }}" || echo "No changes to commit"
           git push
         env:
