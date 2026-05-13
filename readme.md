@@ -22,13 +22,13 @@ The dashboard is available at: `https://[your-username].github.io/Github-Action-
 The weather data is fetched from the Hong Kong Observatory API:
 - **API**: `https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=tc`
 - **Update Frequency**: Every hour via GitHub Actions
-- **Data Format**: JSON files stored in the `weather_data/` directory
+- **Data Format**: Consolidated JSON files stored in the `weather_data/` and `NineDayForecast/` directories
 
 ## 🔧 How It Works
 
 1. **Data Collection**: A GitHub Action runs every hour to fetch weather data from the Hong Kong Observatory API
-2. **Data Storage**: Weather data is stored as JSON files in the `weather_data/` directory
-3. **Visualization**: The GitHub Pages site loads and displays the most recent weather data
+2. **Data Storage**: Hourly weather history is appended to `weather_data/history.json`, and the latest forecast is written to `NineDayForecast/latest.json`
+3. **Visualization**: The GitHub Pages site loads the consolidated files directly to reduce repeated requests
 4. **Auto-update**: The dashboard automatically refreshes every 5 minutes to show the latest data
 
 ## 📁 Repository Structure
@@ -37,9 +37,10 @@ The weather data is fetched from the Hong Kong Observatory API:
 ├── index.html              # Main dashboard HTML file
 ├── weather-loader.js        # JavaScript helper for loading weather data
 ├── _config.yml             # GitHub Pages configuration
-├── weather_data/           # Directory containing weather JSON files
-│   ├── weather_YYYYMMDD_HHMMSS.json
-│   └── ...
+├── weather_data/           # Consolidated weather history for the dashboard
+│   └── history.json
+├── NineDayForecast/        # Latest 9-day forecast payload for the dashboard
+│   └── latest.json
 └── .github/workflows/
     └── ActionFlow.yaml     # GitHub Action for data collection
 ```
@@ -89,7 +90,7 @@ The weather data is fetched from the Hong Kong Observatory API:
 The repository already includes a GitHub Action that:
 - Runs every hour
 - Fetches weather data from Hong Kong Observatory
-- Saves data as JSON files
+- Updates consolidated JSON files for Pages
 - Commits and pushes updates automatically
 
 ## 🎯 Features Overview
@@ -108,7 +109,7 @@ The repository already includes a GitHub Action that:
 ## 🔄 Data Update Cycle
 
 ```
-GitHub Action (Hourly) → Weather API → JSON Files → GitHub Pages → User Dashboard
+GitHub Action (Hourly) → Weather API → Consolidated JSON Files → GitHub Pages → User Dashboard
 ```
 
 ## 🌐 Browser Compatibility

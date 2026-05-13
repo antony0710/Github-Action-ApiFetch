@@ -4,6 +4,92 @@ export class WeatherDataLoader {
     this.cache = new Map();
     this.maxCacheSize = 50;
   }
+
+  async loadWeatherHistory(onProgress) {
+    try {
+      onProgress?.('Loading consolidated weather history...');
+      const response = await fetch('weather_data/history.json');
+
+      if (!response.ok) {
+        throw new Error(`Failed to load history.json: ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const historicalData = this.normalizeHistoryEntries(payload.history || []);
+      const latestData = payload.latest?.data || historicalData[historicalData.length - 1]?.data || null;
+
+      if (historicalData.length === 0 || !latestData) {
+        throw new Error('Invalid format in history.json');
+      }
+
+      onProgress?.(`Loaded ${historicalData.length} weather snapshots`);
+      return { historicalData, latestData };
+    } catch (error) {
+      console.warn('Falling back to legacy weather file loading:', error);
+      return this.loadLegacyWeatherHistory(onProgress);
+    }
+  }
+
+  normalizeHistoryEntries(entries) {
+    return entries
+      .filter((entry) => entry?.timestamp && entry?.temperature)
+      .map((entry) => ({
+        timestamp: new Date(entry.timestamp),
+        filename: entry.filename,
+        data: {
+          updateTime: entry.updateTime,
+          temperature: entry.temperature
+        }
+      }))
+      .sort((a, b) => a.timestamp - b.timestamp);
+  }
+
+  async loadLegacyWeatherHistory(onProgress) {
+    const weatherFiles = await this.getAvailableFiles();
+
+    if (weatherFiles.length === 0) {
+      throw new Error('No weather data files found');
+    }
+
+    const historicalData = [];
+    const batchSize = 10;
+
+    for (let i = 0; i < weatherFiles.length; i += batchSize) {
+      const batch = weatherFiles.slice(i, i + batchSize);
+      const progress = Math.min(100, Math.round((i / weatherFiles.length) * 100));
+      onProgress?.(`Loading weather data: ${progress}% (${i}/${weatherFiles.length} files)`);
+
+      const batchResults = await Promise.all(batch.map(async (filename) => {
+        try {
+          const data = await this.loadWeatherData(filename);
+          return {
+            timestamp: this.extractTimestamp(filename),
+            filename,
+            data
+          };
+        } catch (error) {
+          console.warn(`Error loading ${filename}:`, error);
+          return null;
+        }
+      }));
+
+      batchResults.forEach((result) => {
+        if (result) {
+          historicalData.push(result);
+        }
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
+    historicalData.sort((a, b) => a.timestamp - b.timestamp);
+    onProgress?.(`Loaded ${historicalData.length} weather files successfully`);
+
+    return {
+      historicalData,
+      latestData: historicalData[historicalData.length - 1]?.data || null
+    };
+  }
   
   async getAvailableFiles() {
     try {
