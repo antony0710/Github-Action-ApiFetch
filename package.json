@@ -4,6 +4,7 @@
   "description": "A real-time weather data visualization dashboard for Hong Kong, automatically updated via GitHub Actions.",
   "homepage": ".",
   "private": true,
+  "homepage": "https://antony0710.github.io/Github-Action-ApiFetch",
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
