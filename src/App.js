@@ -23,23 +23,9 @@ function App() {
       setLoading(true);
       setError(null);
       setLoadingProgress('Loading weather data...');
-
-      // Get list of weather files
-      const weatherFiles = await weatherLoader.getAvailableFiles();
-      
-      if (weatherFiles.length === 0) {
-        throw new Error('No weather data files found');
-      }
-
-      // Load all weather data
-      const allData = await loadAllWeatherData(weatherFiles);
+      const { historicalData: allData, latestData } = await weatherLoader.loadWeatherHistory(setLoadingProgress);
       setHistoricalData(allData);
-
-      // Set the most recent data as current
-      if (allData.length > 0) {
-        const latestData = allData[allData.length - 1];
-        setWeatherData(latestData.data);
-      }
+      setWeatherData(latestData);
 
       // Load forecast data
       await loadForecastData();
@@ -52,52 +38,17 @@ function App() {
     }
   };
 
-  const loadAllWeatherData = async (files) => {
-    const historicalData = [];
-    const batchSize = 10;
-    
-    for (let i = 0; i < files.length; i += batchSize) {
-      const batch = files.slice(i, i + batchSize);
-      
-      const progress = Math.min(100, Math.round((i / files.length) * 100));
-      setLoadingProgress(`Loading weather data: ${progress}% (${i}/${files.length} files)`);
-      
-      const promises = batch.map(async (filename) => {
-        try {
-          const data = await weatherLoader.loadWeatherData(filename);
-          const timestamp = weatherLoader.extractTimestamp(filename);
-          
-          return {
-            timestamp: timestamp,
-            filename: filename,
-            data: data
-          };
-        } catch (error) {
-          console.warn(`Error loading ${filename}:`, error);
-          return null;
-        }
-      });
-      
-      const batchResults = await Promise.all(promises);
-      batchResults.forEach(result => {
-        if (result) {
-          historicalData.push(result);
-        }
-      });
-      
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-    
-    historicalData.sort((a, b) => a.timestamp - b.timestamp);
-    setLoadingProgress(`Loaded ${historicalData.length} weather files successfully`);
-    
-    return historicalData;
-  };
-
   const loadForecastData = async () => {
     try {
+      const latestResponse = await fetch('NineDayForecast/latest.json');
+      if (latestResponse.ok) {
+        const latestData = await latestResponse.json();
+        setForecastData(latestData);
+        return;
+      }
+
       const forecastFiles = await getForecastFiles();
-      
+
       if (forecastFiles.length > 0) {
         const response = await fetch(`NineDayForecast/${forecastFiles[0]}`);
         if (response.ok) {
@@ -106,7 +57,7 @@ function App() {
           return;
         }
       }
-      
+
       // Fallback to sample data
       const response = await fetch('NineDayForecast/forecast_sample.json');
       if (response.ok) {
