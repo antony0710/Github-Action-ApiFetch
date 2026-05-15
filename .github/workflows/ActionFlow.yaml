@@ -29,6 +29,11 @@ jobs:
       - name: 抓取天氣暫存資料
         run: |
           curl "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=tc" -o "/tmp/current_weather.json"
+      - name: 抓取後立即更新 weather_data/history.json
+        run: |
+          python gen_index.py \
+            --weather-file /tmp/current_weather.json \
+            --weather-timestamp "${{ steps.datetime.outputs.now }}"
       - name: 抓取九天天氣預報暫存資料
         run: |
           curl "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=fnd&lang=tc" -o "/tmp/current_forecast.json"
